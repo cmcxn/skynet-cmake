@@ -86,44 +86,71 @@ jobs:
         $buildDir = "${{ matrix.build_dir }}"
         $config = "${{ matrix.config }}"
         
+        Write-Host "Build directory: $buildDir"
+        Write-Host "Configuration: $config"
+        
         # Find vcruntime DLLs
         if ($config -eq "debug") {
-          # Debug runtime DLLs
-          $vcRuntime = Get-ChildItem -Path "$env:VCToolsRedistDir" -Recurse -Filter "vcruntime140d.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $ucrtBase = Get-ChildItem -Path "$env:VCToolsRedistDir" -Recurse -Filter "ucrtbased.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $msvcp = Get-ChildItem -Path "$env:VCToolsRedistDir" -Recurse -Filter "msvcp140d.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          Write-Host "Searching for debug runtime DLLs..."
           
-          # If not in redist, try debug directory
-          if (-not $vcRuntime) {
-            $vcRuntime = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "vcruntime140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
-          }
-          if (-not $msvcp) {
-            $msvcp = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "msvcp140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
-          }
+          # Debug runtime DLLs from VC Tools
+          $vcRuntime = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "vcruntime140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
+          $msvcp = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "msvcp140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
+          $concrt = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "concrt140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
+          $vccorlib = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "vccorlib140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
           
-          # Copy debug UCRT from Windows SDK
-          $sdkDir = "$env:UniversalCRTSdkDir\bin\$env:UCRTVersion\x64\ucrt"
-          if (Test-Path "$sdkDir\ucrtbased.dll") {
-            Copy-Item "$sdkDir\ucrtbased.dll" -Destination $buildDir -Force
-            Write-Host "Copied ucrtbased.dll"
+          # Copy all UCRT debug DLLs from Windows SDK
+          $ucrtDebugDir = "$env:UniversalCRTSdkDir\bin\$env:UCRTVersion\x64\ucrt"
+          Write-Host "UCRT Debug directory: $ucrtDebugDir"
+          
+          if (Test-Path $ucrtDebugDir) {
+            # Copy all debug UCRT DLLs
+            $ucrtDlls = Get-ChildItem -Path $ucrtDebugDir -Filter "*d.dll" -ErrorAction SilentlyContinue
+            foreach ($dll in $ucrtDlls) {
+              Copy-Item $dll.FullName -Destination $buildDir -Force
+              Write-Host "Copied UCRT: $($dll.Name)"
+            }
+          } else {
+            Write-Host "Warning: UCRT debug directory not found"
           }
         } else {
+          Write-Host "Searching for release runtime DLLs..."
+          
           # Release runtime DLLs
-          $vcRuntime = Get-ChildItem -Path "$env:VCToolsRedistDir" -Recurse -Filter "vcruntime140.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
-          $msvcp = Get-ChildItem -Path "$env:VCToolsRedistDir" -Recurse -Filter "msvcp140.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
+          $vcRuntime = Get-ChildItem -Path "$env:VCToolsRedistDir" -Recurse -Filter "vcruntime140.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
+          $msvcp = Get-ChildItem -Path "$env:VCToolsRedistDir" -Recurse -Filter "msvcp140.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
+          $concrt = Get-ChildItem -Path "$env:VCToolsRedistDir" -Recurse -Filter "concrt140.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
+          $vccorlib = Get-ChildItem -Path "$env:VCToolsRedistDir" -Recurse -Filter "vccorlib140.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
         }
         
         # Copy the DLLs
         if ($vcRuntime) {
           Copy-Item $vcRuntime.FullName -Destination $buildDir -Force
-          Write-Host "Copied $($vcRuntime.Name)"
+          Write-Host "Copied: $($vcRuntime.Name) from $($vcRuntime.DirectoryName)"
+        } else {
+          Write-Host "Warning: vcruntime not found"
         }
+        
         if ($msvcp) {
           Copy-Item $msvcp.FullName -Destination $buildDir -Force
-          Write-Host "Copied $($msvcp.Name)"
+          Write-Host "Copied: $($msvcp.Name) from $($msvcp.DirectoryName)"
+        } else {
+          Write-Host "Warning: msvcp not found"
+        }
+        
+        if ($concrt) {
+          Copy-Item $concrt.FullName -Destination $buildDir -Force
+          Write-Host "Copied: $($concrt.Name)"
+        }
+        
+        if ($vccorlib) {
+          Copy-Item $vccorlib.FullName -Destination $buildDir -Force
+          Write-Host "Copied: $($vccorlib.Name)"
         }
         
         Write-Host "Runtime DLLs copied to build directory"
+        Write-Host "Contents of build directory:"
+        Get-ChildItem -Path $buildDir -Filter "*.dll" | ForEach-Object { Write-Host "  $($_.Name)" }
       shell: pwsh
 
     - name: Package artifacts (Linux/macOS)
