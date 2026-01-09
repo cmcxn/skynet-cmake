@@ -159,7 +159,7 @@ Option 3: Install Visual Studio 2022 Redistributables
           foreach ($path in $searchPaths) {
             if (Test-Path $path) {
               Write-Host "Searching in: $path"
-              foreach ($dllName in $dllsToFind.Keys) {
+              foreach ($dllName in @($dllsToFind.Keys)) {
                 if ($null -eq $dllsToFind[$dllName]) {
                   $found = Get-ChildItem -Path $path -Filter $dllName -ErrorAction SilentlyContinue | Select-Object -First 1
                   if ($found) {
@@ -172,7 +172,7 @@ Option 3: Install Visual Studio 2022 Redistributables
           }
           
           # Copy found DLLs
-          foreach ($dllName in $dllsToFind.Keys) {
+          foreach ($dllName in @($dllsToFind.Keys)) {
             $dll = $dllsToFind[$dllName]
             if ($dll) {
               Copy-Item $dll.FullName -Destination $buildDir -Force
