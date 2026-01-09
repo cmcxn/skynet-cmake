@@ -71,7 +71,7 @@ jobs:
     - name: Package artifacts (Linux/macOS)
       if: matrix.os != 'windows-latest'
       run: |
-        cd ${{ matrix.build_dir }}
+        cd "${{ matrix.build_dir }}"
         # Create list of files and directories that exist
         items=""
         [ -f "${{ matrix.executable }}" ] && items="$items ${{ matrix.executable }}"
@@ -80,15 +80,15 @@ jobs:
         [ -d "lualib" ] && items="$items lualib"
         [ -d "service" ] && items="$items service"
         [ -d "examples" ] && items="$items examples"
-        tar -czf ../${{ matrix.artifact_name }}.tar.gz $items
+        tar -czf "$GITHUB_WORKSPACE/${{ matrix.artifact_name }}.tar.gz" $items
 
     - name: Package artifacts (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        cd ${{ matrix.build_dir }}
+        cd "${{ matrix.build_dir }}"
         # Collect files that exist
         $files = @()
-        $files += Get-Item -Path "skynet.exe" -ErrorAction SilentlyContinue
+        $files += Get-Item -Path "${{ matrix.executable }}" -ErrorAction SilentlyContinue
         $files += Get-Item -Path "*.dll" -ErrorAction SilentlyContinue
         $dirs = @("luaclib", "cservice", "lualib", "service", "examples")
         foreach ($dir in $dirs) {
@@ -97,7 +97,7 @@ jobs:
           }
         }
         if ($files.Count -gt 0) {
-          Compress-Archive -Path $files -DestinationPath "../../../${{ matrix.artifact_name }}.zip" -Force
+          Compress-Archive -Path $files -DestinationPath "$env:GITHUB_WORKSPACE/${{ matrix.artifact_name }}.zip" -Force
         }
       shell: pwsh
 
