@@ -10,7 +10,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        submodules: true
+        submodules: recursive
 
     - name:  Configure build PATH
       uses: ilammy/msvc-dev-cmd@v1
@@ -21,3 +21,16 @@ jobs:
 
     - name: Build
       run: cmake --build out/build/x64-debug
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: skynet-cmake-windows-x64
+        path: |
+          out/build/x64-debug/skynet.exe
+          out/build/x64-debug/*.dll
+          out/build/x64-debug/luaclib/
+          out/build/x64-debug/cservice/
+          out/build/x64-debug/lualib/
+          out/build/x64-debug/service/
+          out/build/x64-debug/examples/

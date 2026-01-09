@@ -1,0 +1,103 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential libreadline-dev
+
+    - name: Build
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        cmake --build . -j$(nproc)
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: skynet-cmake-linux-x64
+        path: |
+          build/skynet
+          build/luaclib/
+          build/cservice/
+          build/lualib/
+          build/service/
+          build/examples/
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        brew install cmake
+
+    - name: Build
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        cmake --build . -j$(sysctl -n hw.ncpu)
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: skynet-cmake-macos-x64
+        path: |
+          build/skynet
+          build/luaclib/
+          build/cservice/
+          build/lualib/
+          build/service/
+          build/examples/
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Configure build PATH
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure CMake
+      run: |
+        cmake --preset x64-debug
+
+    - name: Build
+      run: |
+        cmake --build out/build/x64-debug
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: skynet-cmake-windows-x64
+        path: |
+          out/build/x64-debug/skynet.exe
+          out/build/x64-debug/*.dll
+          out/build/x64-debug/luaclib/
+          out/build/x64-debug/cservice/
+          out/build/x64-debug/lualib/
+          out/build/x64-debug/service/
+          out/build/x64-debug/examples/

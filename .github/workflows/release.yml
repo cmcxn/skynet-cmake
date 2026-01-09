@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: skynet-cmake-linux-x64
+            build_dir: build
+            executable: skynet
+          - os: macos-latest
+            artifact_name: skynet-cmake-macos-x64
+            build_dir: build
+            executable: skynet
+          - os: windows-latest
+            artifact_name: skynet-cmake-windows-x64
+            build_dir: out/build/x64-debug
+            executable: skynet.exe
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential libreadline-dev
+
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install cmake
+
+    - name: Configure build PATH (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure CMake (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+
+    - name: Configure CMake (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cmake --preset x64-debug
+
+    - name: Build (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cd build
+        cmake --build . -j
+
+    - name: Build (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cmake --build out/build/x64-debug
+
+    - name: Package artifacts (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cd ${{ matrix.build_dir }}
+        tar -czf ../${{ matrix.artifact_name }}.tar.gz \
+          ${{ matrix.executable }} \
+          luaclib/ \
+          cservice/ \
+          lualib/ \
+          service/ \
+          examples/
+
+    - name: Package artifacts (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cd ${{ matrix.build_dir }}
+        Compress-Archive -Path skynet.exe,*.dll,luaclib,cservice,lualib,service,examples -DestinationPath ../../../${{ matrix.artifact_name }}.zip
+      shell: pwsh
+
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ${{ matrix.artifact_name }}.tar.gz
+          ${{ matrix.artifact_name }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
