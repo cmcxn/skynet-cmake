@@ -1,14 +1,79 @@
-# Workflow's name
-name: msvc
+name: Build
 
-# Run this workflow every time a new commit pushed to your repository
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential libreadline-dev
+
+    - name: Build
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        cmake --build . -j$(nproc)
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: skynet-cmake-linux-x64
+        path: |
+          build/skynet
+          build/luaclib/
+          build/cservice/
+          build/lualib/
+          build/service/
+          build/examples/
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        brew install cmake
+
+    - name: Build
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        cmake --build . -j$(sysctl -n hw.ncpu)
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: skynet-cmake-macos-x64
+        path: |
+          build/skynet
+          build/luaclib/
+          build/cservice/
+          build/lualib/
+          build/service/
+          build/examples/
+
+  build-windows:
     runs-on: windows-latest
     strategy:
       matrix:
@@ -21,11 +86,12 @@ jobs:
             preset: x64-release
             build_dir: out/build/x64-release
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name:  Configure build PATH
+    - name: Configure build PATH
       uses: ilammy/msvc-dev-cmd@v1
 
     - name: Configure CMake
@@ -33,8 +99,9 @@ jobs:
         cmake --preset ${{ matrix.preset }}
 
     - name: Build
-      run: cmake --build ${{ matrix.build_dir }}
-    
+      run: |
+        cmake --build ${{ matrix.build_dir }}
+
     - name: Copy Visual C++ Runtime DLLs
       run: |
         # Copy MSVC runtime DLLs to build directory
@@ -156,7 +223,7 @@ jobs:
         Get-ChildItem -Path $buildDir -Filter "*.dll" | ForEach-Object { Write-Host "  DLL: $($_.Name)" }
         Get-ChildItem -Path $buildDir -Filter "*.exe" | ForEach-Object { Write-Host "  EXE: $($_.Name)" }
       shell: pwsh
-    
+
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:

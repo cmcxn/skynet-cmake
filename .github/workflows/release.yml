@@ -1,41 +1,86 @@
-# Workflow's name
-name: msvc
+name: Release
 
-# Run this workflow every time a new commit pushed to your repository
-on: [push, pull_request]
+on:
+  push:
+    tags:
+      - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build:
-    runs-on: windows-latest
+  build-and-release:
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        config: [debug, release]
         include:
-          - config: debug
+          - os: ubuntu-latest
+            artifact_name: skynet-cmake-linux-x64
+            build_dir: build
+            executable: skynet
+          - os: macos-latest
+            artifact_name: skynet-cmake-macos-x64
+            build_dir: build
+            executable: skynet
+          - os: windows-latest
+            config: debug
+            artifact_name: skynet-cmake-windows-x64-debug
             preset: x64-debug
             build_dir: out/build/x64-debug
-          - config: release
+            executable: skynet.exe
+          - os: windows-latest
+            config: release
+            artifact_name: skynet-cmake-windows-x64-release
             preset: x64-release
             build_dir: out/build/x64-release
+            executable: skynet.exe
+    
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name:  Configure build PATH
+    - name: Install dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential libreadline-dev
+
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install cmake
+
+    - name: Configure build PATH (Windows)
+      if: matrix.os == 'windows-latest'
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Configure CMake
+    - name: Configure CMake (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+
+    - name: Configure CMake (Windows)
+      if: matrix.os == 'windows-latest'
       run: |
         cmake --preset ${{ matrix.preset }}
 
-    - name: Build
-      run: cmake --build ${{ matrix.build_dir }}
-    
-    - name: Copy Visual C++ Runtime DLLs
+    - name: Build (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cd build
+        cmake --build . -j
+
+    - name: Build (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cmake --build ${{ matrix.build_dir }}
+
+    - name: Copy Visual C++ Runtime DLLs (Windows)
+      if: matrix.os == 'windows-latest'
       run: |
         # Copy MSVC runtime DLLs to build directory
         $buildDir = "${{ matrix.build_dir }}"
@@ -55,8 +100,31 @@ jobs:
         if ($config -eq "debug") {
           Write-Host "=== Debug Build - Bundling Debug Redistributable ==="
           
+          # Create README for debug runtime
+          @"
+Debug Runtime Dependencies for Windows
+========================================
+
+This debug package includes:
+1. Debug runtime DLLs (if available) copied directly
+2. vc_redist_debug_x64.exe - Visual C++ Redistributable installer (if available)
+
+If you encounter error 0xc000007b or missing DLL errors:
+
+Option 1: Use included DLLs
+  - Debug DLLs should be in same directory as skynet.exe
+  - If present, skynet.exe should run without installation
+
+Option 2: Install redistributable
+  - Run vc_redist_debug_x64.exe (if included)
+  - Follow installation wizard
+
+Option 3: Install Visual Studio 2022 Redistributables
+  - Download: https://aka.ms/vs/17/release/vc_redist.x64.exe
+  - Install and restart application
+"@ | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Encoding UTF8
+          
           # For debug builds, bundle the debug redistributable installer
-          # This is more reliable than copying individual DLLs
           $vcRedistDebug = Get-ChildItem -Path "$env:VCToolsRedistDir" -Recurse -Filter "vc_redist.x64.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           
           if ($vcRedistDebug) {
@@ -116,7 +184,7 @@ jobs:
           
           # Copy all UCRT debug DLLs from Windows SDK
           $ucrtDebugDir = "$env:UniversalCRTSdkDir\bin\$env:UCRTVersion\x64\ucrt"
-          Write-Host "UCRT Debug directory: $ucrtDebugDir"
+          Write-Host "`nUCRT Debug directory: $ucrtDebugDir"
           
           if (Test-Path $ucrtDebugDir) {
             $ucrtDlls = Get-ChildItem -Path $ucrtDebugDir -Filter "*d.dll" -ErrorAction SilentlyContinue
@@ -155,19 +223,70 @@ jobs:
         Write-Host "`n=== Files in build directory after copying ==="
         Get-ChildItem -Path $buildDir -Filter "*.dll" | ForEach-Object { Write-Host "  DLL: $($_.Name)" }
         Get-ChildItem -Path $buildDir -Filter "*.exe" | ForEach-Object { Write-Host "  EXE: $($_.Name)" }
+        Get-ChildItem -Path $buildDir -Filter "*.txt" | ForEach-Object { Write-Host "  TXT: $($_.Name)" }
       shell: pwsh
-    
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+
+    - name: Package artifacts (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cd "${{ matrix.build_dir }}"
+        # Create list of files and directories that exist
+        items=""
+        [ -f "${{ matrix.executable }}" ] && items="$items ${{ matrix.executable }}"
+        [ -d "luaclib" ] && items="$items luaclib"
+        [ -d "cservice" ] && items="$items cservice"
+        [ -d "lualib" ] && items="$items lualib"
+        [ -d "service" ] && items="$items service"
+        [ -d "examples" ] && items="$items examples"
+        tar -czf "$GITHUB_WORKSPACE/${{ matrix.artifact_name }}.tar.gz" $items
+
+    - name: Package artifacts (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cd "${{ matrix.build_dir }}"
+        Write-Host "Packaging from directory: $(Get-Location)"
+        Write-Host "All files before packaging:"
+        Get-ChildItem -File | ForEach-Object { Write-Host "  $($_.Name)" }
+        
+        # Collect files that exist
+        $files = @()
+        $files += Get-Item -Path "${{ matrix.executable }}" -ErrorAction SilentlyContinue
+        $files += Get-Item -Path "lua.exe" -ErrorAction SilentlyContinue
+        $files += Get-Item -Path "luac.exe" -ErrorAction SilentlyContinue
+        $files += Get-Item -Path "*.dll" -ErrorAction SilentlyContinue
+        $files += Get-Item -Path "vc_redist*.exe" -ErrorAction SilentlyContinue
+        $files += Get-Item -Path "*.txt" -ErrorAction SilentlyContinue
+        $dirs = @("luaclib", "cservice", "lualib", "service", "examples")
+        foreach ($dir in $dirs) {
+          if (Test-Path $dir) {
+            $files += Get-Item -Path $dir
+          }
+        }
+        
+        Write-Host "`nFiles to be packaged:"
+        $files | ForEach-Object { Write-Host "  $($_.Name)" }
+        
+        if ($files.Count -gt 0) {
+          Compress-Archive -Path $files -DestinationPath "$env:GITHUB_WORKSPACE/${{ matrix.artifact_name }}.zip" -Force
+          Write-Host "`nPackage created: $env:GITHUB_WORKSPACE/${{ matrix.artifact_name }}.zip"
+        } else {
+          Write-Host "ERROR: No files to package!"
+          exit 1
+        }
+      shell: pwsh
+
+    - name: Upload Release Assets (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      uses: softprops/action-gh-release@v1
       with:
-        name: skynet-cmake-windows-x64-${{ matrix.config }}
-        path: |
-          ${{ matrix.build_dir }}/skynet.exe
-          ${{ matrix.build_dir }}/lua.exe
-          ${{ matrix.build_dir }}/luac.exe
-          ${{ matrix.build_dir }}/*.dll
-          ${{ matrix.build_dir }}/luaclib/
-          ${{ matrix.build_dir }}/cservice/
-          ${{ matrix.build_dir }}/lualib/
-          ${{ matrix.build_dir }}/service/
-          ${{ matrix.build_dir }}/examples/
+        files: ${{ matrix.artifact_name }}.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Release Assets (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ matrix.artifact_name }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

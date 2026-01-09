@@ -53,6 +53,13 @@ if (CMAKE_SYSTEM_NAME MATCHES "Windows")
     add_executable(skynet skynet/skynet-src/skynet_main.c)
     target_link_libraries(skynet ws2_32 liblua libposix libskynet pthreadVC3)
 
+    # 编译 lua.exe 和 luac.exe
+    add_executable(lua skynet/3rd/lua/lua.c)
+    target_link_libraries(lua liblua libposix pthreadVC3)
+    
+    add_executable(luac skynet/3rd/lua/luac.c)
+    target_link_libraries(luac liblua libposix pthreadVC3)
+
     # 生成动态库 skynet.so
     set(LUA_CLIB_SKYNET_SRC
         skynet/lualib-src/lua-skynet.c

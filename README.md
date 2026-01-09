@@ -47,3 +47,42 @@ cd build
 - [dpull/skynet-mingw](https://github.com/dpull/skynet-mingw)
 - [cloudfreexiao/pluto](https://github.com/cloudfreexiao/pluto)
 
+## GitHub Actions 自动构建和发布
+
+本项目已配置 GitHub Actions 工作流，可以自动编译和发布多平台版本。
+
+### 自动构建
+
+每次推送代码或创建 Pull Request 时，会自动触发构建流程：
+
+- **build.yml**: 在 Linux、macOS 和 Windows 三个平台上自动编译，并上传构建产物
+- **msvc.yml**: 专门用于 Windows MSVC 编译测试
+
+构建产物会作为 Artifacts 上传，可以在 GitHub Actions 页面下载。
+
+### 发布版本
+
+当推送标签时（如 `v1.0.0`），会自动触发发布流程：
+
+```bash
+# 创建并推送标签
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+发布流程会：
+1. 在三个平台上编译项目
+2. 打包构建产物：
+   - Linux 和 macOS: `.tar.gz` 格式
+   - Windows: `.zip` 格式
+3. 自动创建 GitHub Release 并上传打包文件
+
+### 子模块自动拉取
+
+所有工作流都配置了自动拉取 git 子模块：
+- `skynet` - 核心框架
+- `3rd/pthread-win32` - Windows 下的 pthread 实现
+
+使用 `submodules: recursive` 选项确保所有子模块都被正确初始化和更新。
+
+
