@@ -72,26 +72,47 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         cd ${{ matrix.build_dir }}
-        tar -czf ../${{ matrix.artifact_name }}.tar.gz \
-          ${{ matrix.executable }} \
-          luaclib/ \
-          cservice/ \
-          lualib/ \
-          service/ \
-          examples/
+        # Create list of files and directories that exist
+        items=""
+        [ -f "${{ matrix.executable }}" ] && items="$items ${{ matrix.executable }}"
+        [ -d "luaclib" ] && items="$items luaclib"
+        [ -d "cservice" ] && items="$items cservice"
+        [ -d "lualib" ] && items="$items lualib"
+        [ -d "service" ] && items="$items service"
+        [ -d "examples" ] && items="$items examples"
+        tar -czf ../${{ matrix.artifact_name }}.tar.gz $items
 
     - name: Package artifacts (Windows)
       if: matrix.os == 'windows-latest'
       run: |
         cd ${{ matrix.build_dir }}
-        Compress-Archive -Path skynet.exe,*.dll,luaclib,cservice,lualib,service,examples -DestinationPath ../../../${{ matrix.artifact_name }}.zip
+        # Collect files that exist
+        $files = @()
+        $files += Get-Item -Path "skynet.exe" -ErrorAction SilentlyContinue
+        $files += Get-Item -Path "*.dll" -ErrorAction SilentlyContinue
+        $dirs = @("luaclib", "cservice", "lualib", "service", "examples")
+        foreach ($dir in $dirs) {
+          if (Test-Path $dir) {
+            $files += Get-Item -Path $dir
+          }
+        }
+        if ($files.Count -gt 0) {
+          Compress-Archive -Path $files -DestinationPath "../../../${{ matrix.artifact_name }}.zip" -Force
+        }
       shell: pwsh
 
-    - name: Upload Release Assets
+    - name: Upload Release Assets (Linux/macOS)
+      if: matrix.os != 'windows-latest'
       uses: softprops/action-gh-release@v1
       with:
-        files: |
-          ${{ matrix.artifact_name }}.tar.gz
-          ${{ matrix.artifact_name }}.zip
+        files: ${{ matrix.artifact_name }}.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Release Assets (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ matrix.artifact_name }}.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
