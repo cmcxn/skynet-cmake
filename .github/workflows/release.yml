@@ -134,33 +134,54 @@ Option 3: Install Visual Studio 2022 Redistributables
             Write-Host "Warning: Could not find vc_redist.x64.exe"
           }
           
-          # Also try to copy the debug DLLs directly for convenience
-          $vcRuntime = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "vcruntime140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
-          $msvcp = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "msvcp140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
-          $concrt = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "concrt140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
-          $vccorlib = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "vccorlib140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
+          # Try to copy the debug DLLs directly for convenience
+          Write-Host "`nSearching for debug DLLs in VCToolsInstallDir..."
+          Write-Host "VCToolsInstallDir: $env:VCToolsInstallDir"
           
-          # Copy debug DLLs if found
-          if ($vcRuntime) {
-            Copy-Item $vcRuntime.FullName -Destination $buildDir -Force
-            Write-Host "Copied: $($vcRuntime.Name)"
+          # Search more broadly for debug DLLs
+          $searchPaths = @(
+            "$env:VCToolsInstallDir\bin\Hostx64\x64",
+            "$env:VCToolsInstallDir\bin\Hostx86\x64", 
+            "$env:VCToolsInstallDir\debug_nonredist\x64\Microsoft.VC143.DebugCRT",
+            "$env:VCToolsRedistDir"
+          )
+          
+          $dllsToFind = @{
+            "vcruntime140d.dll" = $null
+            "msvcp140d.dll" = $null
+            "concrt140d.dll" = $null
+            "vccorlib140d.dll" = $null
           }
-          if ($msvcp) {
-            Copy-Item $msvcp.FullName -Destination $buildDir -Force
-            Write-Host "Copied: $($msvcp.Name)"
+          
+          foreach ($path in $searchPaths) {
+            if (Test-Path $path) {
+              Write-Host "Searching in: $path"
+              foreach ($dllName in $dllsToFind.Keys) {
+                if ($null -eq $dllsToFind[$dllName]) {
+                  $found = Get-ChildItem -Path $path -Filter $dllName -ErrorAction SilentlyContinue | Select-Object -First 1
+                  if ($found) {
+                    $dllsToFind[$dllName] = $found
+                    Write-Host "  Found: $dllName at $($found.FullName)"
+                  }
+                }
+              }
+            }
           }
-          if ($concrt) {
-            Copy-Item $concrt.FullName -Destination $buildDir -Force
-            Write-Host "Copied: $($concrt.Name)"
-          }
-          if ($vccorlib) {
-            Copy-Item $vccorlib.FullName -Destination $buildDir -Force
-            Write-Host "Copied: $($vccorlib.Name)"
+          
+          # Copy found DLLs
+          foreach ($dllName in $dllsToFind.Keys) {
+            $dll = $dllsToFind[$dllName]
+            if ($dll) {
+              Copy-Item $dll.FullName -Destination $buildDir -Force
+              Write-Host "Copied: $($dll.Name)"
+            } else {
+              Write-Host "Warning: Could not find $dllName"
+            }
           }
           
           # Copy all UCRT debug DLLs from Windows SDK
           $ucrtDebugDir = "$env:UniversalCRTSdkDir\bin\$env:UCRTVersion\x64\ucrt"
-          Write-Host "UCRT Debug directory: $ucrtDebugDir"
+          Write-Host "`nUCRT Debug directory: $ucrtDebugDir"
           
           if (Test-Path $ucrtDebugDir) {
             $ucrtDlls = Get-ChildItem -Path $ucrtDebugDir -Filter "*d.dll" -ErrorAction SilentlyContinue
@@ -220,20 +241,34 @@ Option 3: Install Visual Studio 2022 Redistributables
       if: matrix.os == 'windows-latest'
       run: |
         cd "${{ matrix.build_dir }}"
+        Write-Host "Packaging from directory: $(Get-Location)"
+        Write-Host "All files before packaging:"
+        Get-ChildItem -File | ForEach-Object { Write-Host "  $($_.Name)" }
+        
         # Collect files that exist
         $files = @()
         $files += Get-Item -Path "${{ matrix.executable }}" -ErrorAction SilentlyContinue
         $files += Get-Item -Path "lua.exe" -ErrorAction SilentlyContinue
         $files += Get-Item -Path "luac.exe" -ErrorAction SilentlyContinue
         $files += Get-Item -Path "*.dll" -ErrorAction SilentlyContinue
+        $files += Get-Item -Path "vc_redist*.exe" -ErrorAction SilentlyContinue
+        $files += Get-Item -Path "*.txt" -ErrorAction SilentlyContinue
         $dirs = @("luaclib", "cservice", "lualib", "service", "examples")
         foreach ($dir in $dirs) {
           if (Test-Path $dir) {
             $files += Get-Item -Path $dir
           }
         }
+        
+        Write-Host "`nFiles to be packaged:"
+        $files | ForEach-Object { Write-Host "  $($_.Name)" }
+        
         if ($files.Count -gt 0) {
           Compress-Archive -Path $files -DestinationPath "$env:GITHUB_WORKSPACE/${{ matrix.artifact_name }}.zip" -Force
+          Write-Host "`nPackage created: $env:GITHUB_WORKSPACE/${{ matrix.artifact_name }}.zip"
+        } else {
+          Write-Host "ERROR: No files to package!"
+          exit 1
         }
       shell: pwsh
 
