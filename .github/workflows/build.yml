@@ -75,6 +75,16 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        config: [debug, release]
+        include:
+          - config: debug
+            preset: x64-debug
+            build_dir: out/build/x64-debug
+          - config: release
+            preset: x64-release
+            build_dir: out/build/x64-release
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -86,21 +96,23 @@ jobs:
 
     - name: Configure CMake
       run: |
-        cmake --preset x64-debug
+        cmake --preset ${{ matrix.preset }}
 
     - name: Build
       run: |
-        cmake --build out/build/x64-debug
+        cmake --build ${{ matrix.build_dir }}
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: skynet-cmake-windows-x64
+        name: skynet-cmake-windows-x64-${{ matrix.config }}
         path: |
-          out/build/x64-debug/skynet.exe
-          out/build/x64-debug/*.dll
-          out/build/x64-debug/luaclib/
-          out/build/x64-debug/cservice/
-          out/build/x64-debug/lualib/
-          out/build/x64-debug/service/
-          out/build/x64-debug/examples/
+          ${{ matrix.build_dir }}/skynet.exe
+          ${{ matrix.build_dir }}/lua.exe
+          ${{ matrix.build_dir }}/luac.exe
+          ${{ matrix.build_dir }}/*.dll
+          ${{ matrix.build_dir }}/luaclib/
+          ${{ matrix.build_dir }}/cservice/
+          ${{ matrix.build_dir }}/lualib/
+          ${{ matrix.build_dir }}/service/
+          ${{ matrix.build_dir }}/examples/

@@ -23,8 +23,16 @@ jobs:
             build_dir: build
             executable: skynet
           - os: windows-latest
-            artifact_name: skynet-cmake-windows-x64
+            config: debug
+            artifact_name: skynet-cmake-windows-x64-debug
+            preset: x64-debug
             build_dir: out/build/x64-debug
+            executable: skynet.exe
+          - os: windows-latest
+            config: release
+            artifact_name: skynet-cmake-windows-x64-release
+            preset: x64-release
+            build_dir: out/build/x64-release
             executable: skynet.exe
     
     steps:
@@ -58,7 +66,7 @@ jobs:
     - name: Configure CMake (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        cmake --preset x64-debug
+        cmake --preset ${{ matrix.preset }}
 
     - name: Build (Linux/macOS)
       if: matrix.os != 'windows-latest'
@@ -69,7 +77,7 @@ jobs:
     - name: Build (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        cmake --build out/build/x64-debug
+        cmake --build ${{ matrix.build_dir }}
 
     - name: Package artifacts (Linux/macOS)
       if: matrix.os != 'windows-latest'
@@ -92,6 +100,8 @@ jobs:
         # Collect files that exist
         $files = @()
         $files += Get-Item -Path "${{ matrix.executable }}" -ErrorAction SilentlyContinue
+        $files += Get-Item -Path "lua.exe" -ErrorAction SilentlyContinue
+        $files += Get-Item -Path "luac.exe" -ErrorAction SilentlyContinue
         $files += Get-Item -Path "*.dll" -ErrorAction SilentlyContinue
         $dirs = @("luaclib", "cservice", "lualib", "service", "examples")
         foreach ($dir in $dirs) {
