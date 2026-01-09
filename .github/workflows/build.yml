@@ -133,28 +133,52 @@ jobs:
             Write-Host "Warning: Could not find vc_redist.x64.exe"
           }
           
-          # Also try to copy the debug DLLs directly for convenience
-          $vcRuntime = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "vcruntime140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
-          $msvcp = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "msvcp140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
-          $concrt = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "concrt140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
-          $vccorlib = Get-ChildItem -Path "$env:VCToolsInstallDir\bin" -Recurse -Filter "vccorlib140d.dll" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" -and $_.FullName -notmatch "onecore" } | Select-Object -First 1
+          # Try to copy the debug DLLs directly for convenience
+          Write-Host "`nSearching for debug DLLs..."
+          Write-Host "VCToolsInstallDir: $env:VCToolsInstallDir"
+          Write-Host "VCToolsRedistDir: $env:VCToolsRedistDir"
           
-          # Copy debug DLLs if found
-          if ($vcRuntime) {
-            Copy-Item $vcRuntime.FullName -Destination $buildDir -Force
-            Write-Host "Copied: $($vcRuntime.Name)"
+          # Search for debug DLLs in known locations
+          # The debug_nonredist folder contains debug versions of runtime DLLs
+          $searchPaths = @(
+            "$env:VCToolsRedistDir\debug_nonredist\x64\Microsoft.VC143.DebugCRT",
+            "$env:VCToolsRedistDir\debug_nonredist\x64\Microsoft.VC142.DebugCRT",
+            "$env:VCToolsRedistDir\debug_nonredist\x64\Microsoft.VC141.DebugCRT",
+            "$env:VCToolsInstallDir\bin\Hostx64\x64",
+            "$env:VCToolsInstallDir\bin\Hostx86\x64"
+          )
+          
+          $dllsToFind = @{
+            "vcruntime140d.dll" = $null
+            "msvcp140d.dll" = $null
+            "concrt140d.dll" = $null
+            "vccorlib140d.dll" = $null
           }
-          if ($msvcp) {
-            Copy-Item $msvcp.FullName -Destination $buildDir -Force
-            Write-Host "Copied: $($msvcp.Name)"
+          
+          foreach ($path in $searchPaths) {
+            if (Test-Path $path) {
+              Write-Host "Searching in: $path"
+              foreach ($dllName in $dllsToFind.Keys) {
+                if ($null -eq $dllsToFind[$dllName]) {
+                  $found = Get-ChildItem -Path $path -Filter $dllName -ErrorAction SilentlyContinue | Select-Object -First 1
+                  if ($found) {
+                    $dllsToFind[$dllName] = $found
+                    Write-Host "  Found: $dllName at $($found.FullName)"
+                  }
+                }
+              }
+            }
           }
-          if ($concrt) {
-            Copy-Item $concrt.FullName -Destination $buildDir -Force
-            Write-Host "Copied: $($concrt.Name)"
-          }
-          if ($vccorlib) {
-            Copy-Item $vccorlib.FullName -Destination $buildDir -Force
-            Write-Host "Copied: $($vccorlib.Name)"
+          
+          # Copy found DLLs
+          foreach ($dllName in $dllsToFind.Keys) {
+            $dll = $dllsToFind[$dllName]
+            if ($dll) {
+              Copy-Item $dll.FullName -Destination $buildDir -Force
+              Write-Host "Copied: $($dll.Name)"
+            } else {
+              Write-Host "Warning: Could not find $dllName"
+            }
           }
           
           # Copy all UCRT debug DLLs from Windows SDK

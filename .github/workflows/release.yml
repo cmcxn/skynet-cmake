@@ -135,15 +135,18 @@ Option 3: Install Visual Studio 2022 Redistributables
           }
           
           # Try to copy the debug DLLs directly for convenience
-          Write-Host "`nSearching for debug DLLs in VCToolsInstallDir..."
+          Write-Host "`nSearching for debug DLLs..."
           Write-Host "VCToolsInstallDir: $env:VCToolsInstallDir"
+          Write-Host "VCToolsRedistDir: $env:VCToolsRedistDir"
           
-          # Search more broadly for debug DLLs
+          # Search for debug DLLs in known locations
+          # The debug_nonredist folder contains debug versions of runtime DLLs
           $searchPaths = @(
+            "$env:VCToolsRedistDir\debug_nonredist\x64\Microsoft.VC143.DebugCRT",
+            "$env:VCToolsRedistDir\debug_nonredist\x64\Microsoft.VC142.DebugCRT",
+            "$env:VCToolsRedistDir\debug_nonredist\x64\Microsoft.VC141.DebugCRT",
             "$env:VCToolsInstallDir\bin\Hostx64\x64",
-            "$env:VCToolsInstallDir\bin\Hostx86\x64", 
-            "$env:VCToolsInstallDir\debug_nonredist\x64\Microsoft.VC143.DebugCRT",
-            "$env:VCToolsRedistDir"
+            "$env:VCToolsInstallDir\bin\Hostx86\x64"
           )
           
           $dllsToFind = @{
