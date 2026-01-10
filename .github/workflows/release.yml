@@ -100,29 +100,27 @@ jobs:
         if ($config -eq "debug") {
           Write-Host "=== Debug Build - Bundling Debug Redistributable ==="
           
-          # Create README for debug runtime
-          @"
-Debug Runtime Dependencies for Windows
-========================================
-
-This debug package includes:
-1. Debug runtime DLLs (if available) copied directly
-2. vc_redist_debug_x64.exe - Visual C++ Redistributable installer (if available)
-
-If you encounter error 0xc000007b or missing DLL errors:
-
-Option 1: Use included DLLs
-  - Debug DLLs should be in same directory as skynet.exe
-  - If present, skynet.exe should run without installation
-
-Option 2: Install redistributable
-  - Run vc_redist_debug_x64.exe (if included)
-  - Follow installation wizard
-
-Option 3: Install Visual Studio 2022 Redistributables
-  - Download: https://aka.ms/vs/17/release/vc_redist.x64.exe
-  - Install and restart application
-"@ | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Encoding UTF8
+          # Create README for debug runtime using Set-Content
+          "Debug Runtime Dependencies for Windows" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Encoding UTF8
+          "========================================" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "This debug package includes:" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "1. Debug runtime DLLs (if available) copied directly" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "2. vc_redist_debug_x64.exe - Visual C++ Redistributable installer (if available)" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "If you encounter error 0xc000007b or missing DLL errors:" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "Option 1: Use included DLLs" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "  - Debug DLLs should be in same directory as skynet.exe" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "  - If present, skynet.exe should run without installation" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "Option 2: Install redistributable" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "  - Run vc_redist_debug_x64.exe (if included)" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "  - Follow installation wizard" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "Option 3: Install Visual Studio 2022 Redistributables" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "  - Download: https://aka.ms/vs/17/release/vc_redist.x64.exe" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
+          "  - Install and restart application" | Out-File -FilePath "$buildDir\DEBUG_RUNTIME_README.txt" -Append -Encoding UTF8
           
           # For debug builds, bundle the debug redistributable installer
           $vcRedistDebug = Get-ChildItem -Path "$env:VCToolsRedistDir" -Recurse -Filter "vc_redist.x64.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -287,7 +285,7 @@ Option 3: Install Visual Studio 2022 Redistributables
       if: matrix.os != 'windows-latest'
       uses: softprops/action-gh-release@v1
       with:
-        files: ${{ matrix.artifact_name }}.tar.gz
+        files: ./${{ matrix.artifact_name }}.tar.gz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -295,6 +293,6 @@ Option 3: Install Visual Studio 2022 Redistributables
       if: matrix.os == 'windows-latest'
       uses: softprops/action-gh-release@v1
       with:
-        files: ${{ matrix.artifact_name }}.zip
+        files: ./${{ matrix.artifact_name }}.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
