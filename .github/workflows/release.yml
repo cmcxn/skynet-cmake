@@ -238,7 +238,15 @@ Option 3: Install Visual Studio 2022 Redistributables
         [ -d "lualib" ] && items="$items lualib"
         [ -d "service" ] && items="$items service"
         [ -d "examples" ] && items="$items examples"
+        
+        if [ -z "$items" ]; then
+          echo "ERROR: No files to package!"
+          exit 1
+        fi
+        
         tar -czf "$GITHUB_WORKSPACE/${{ matrix.artifact_name }}.tar.gz" $items
+        echo "Package created: $GITHUB_WORKSPACE/${{ matrix.artifact_name }}.tar.gz"
+        ls -lh "$GITHUB_WORKSPACE/${{ matrix.artifact_name }}.tar.gz"
 
     - name: Package artifacts (Windows)
       if: matrix.os == 'windows-latest'
